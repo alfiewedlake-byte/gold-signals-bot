@@ -1,0 +1,17 @@
+{
+  "name": "gold-signals-bot",
+  "version": "1.0.0",
+  "description": "TradingView webhook to Telegram signal forwarder with weekly news digest",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "rss-parser": "^3.13.0"
+  }
+}
