@@ -60,5 +60,6 @@ app.post('/webhook/:secret', async (req, res) => {
 
 app.get('/', (req, res) => res.send('Gold Signal Bot is running ✅'));
 
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`));
