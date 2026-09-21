@@ -75,7 +75,38 @@ app.post('/webhook/:secret', async (req, res) => {
     console.error('Error:', err);
     res.status(500).send('Server error');
   }
+});const { calculateTargets } = require('./atr');
+const { addTrade } = require('./tradeStore');
+const { postEntrySignal } = require('./telegram');
+
+app.post('/webhook-test/:secret', async (req, res) => {
+  if (req.params.secret !== WEBHOOK_SECRET) {
+    return res.status(403).send('Forbidden');
+  }
+
+  const { symbol, direction, entry, interval } = req.body;
+
+  try {
+    const targets = await calculateTargets({
+      symbol,
+      interval,
+      entry: parseFloat(entry),
+      direction,
+    });
+
+    await postEntrySignal({ symbol, direction, entry: parseFloat(entry), interval, ...targets });
+
+    const tradeId = `TEST-${symbol}-${Date.now()}`;
+    addTrade(tradeId, { symbol, interval, ...targets });
+
+    console.log('Test webhook processed OK:', { symbol, direction, entry, ...targets });
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('Test webhook failed:', err.message);
+    res.status(500).send('Test webhook error — check Railway logs');
+  }
 });
+
 
 // ── WEEKLY NEWS DIGEST ───────────────────────────────────────
 // Runs automatically every Monday at 07:00 UTC.
