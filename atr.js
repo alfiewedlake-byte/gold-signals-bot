@@ -53,7 +53,7 @@ function calculateATR(candles, period = 14) {
 async function calculateTargets({ symbol, interval, entry, direction }) {
   const candles = await fetchCandles(symbol, interval, 30);
   const atr = calculateATR(candles, 14);
-  const riskDistance = 2 * atr; // your rule: SL is always 2x ATR
+  const riskDistance = 3.5 * atr; // your rule: SL is always 3.5x ATR
 
   const isBuy = direction === 'buy';
   const sl = isBuy ? entry - riskDistance : entry + riskDistance;
@@ -74,3 +74,4 @@ async function calculateTargets({ symbol, interval, entry, direction }) {
 }
 
 module.exports = { fetchCandles, calculateATR, calculateTargets };
+
