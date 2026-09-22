@@ -4,12 +4,10 @@ const path = require('path');
 const FormData = require('form-data');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const CHANNEL_ID = process.env.TELEGRAM_CHAT_ID; // matches the variable name your bot already uses
+const CHANNEL_ID = process.env.TELEGRAM_CHAT_ID;
 const OWNER_CHAT_ID = process.env.OWNER_CHAT_ID;
 
-// Just point these at the image files sitting in the repo — no hosting,
-// no URLs, no extra env vars needed for the graphics.
-const TP_IMAGE_PATH = path.join(__dirname, 'tp-hit.png');
+const TP_IMAGE_PATH = path.join(__dirname, 'tp-hit.png.PNG');
 const SL_IMAGE_PATH = path.join(__dirname, 'sl-hit.png');
 const DAILY_RECAP_IMAGE_PATH = path.join(__dirname, 'daily-recap.png');
 const WEEKLY_RECAP_IMAGE_PATH = path.join(__dirname, 'weekly-recap.png');
@@ -45,9 +43,6 @@ async function sendPhotoFile(filePath, caption) {
   }
 }
 
-// Sends straight to you (OWNER_CHAT_ID), not the channel — used to alert
-// you when something behind the scenes breaks (e.g. price polling fails)
-// instead of that failure sitting silently in Railway logs only.
 async function notifyOwner(text) {
   if (!OWNER_CHAT_ID) return;
   try {
@@ -61,19 +56,17 @@ async function notifyOwner(text) {
   }
 }
 
-// Decimal places differ by pair type — gold and crypto need fewer,
-// standard forex pairs need more or TP1-4 round to the same number.
 function getDecimals(symbol) {
   if (symbol.includes('JPY')) return 3;
   if (symbol.includes('XAU') || symbol.includes('BTC') || symbol.includes('ETH')) return 2;
-  return 5; // GBP/USD, USD/CAD, etc.
+  return 5;
 }
 
 function formatPairLabel(symbol) {
   if (symbol.includes('XAU')) return 'Gold';
   if (symbol.includes('BTC')) return 'Bitcoin';
   if (symbol.includes('ETH')) return 'Ethereum';
-  return symbol; // e.g. "GBP/USD", "USD/CAD"
+  return symbol;
 }
 
 async function postTPHit(symbol, level, price) {
@@ -97,13 +90,11 @@ async function postBreakevenClose(symbol, rAchieved) {
   await sendMessage(`✅ <b>${formatPairLabel(symbol)}</b> — closed at breakeven after TP${rAchieved}\nProfit banked, remainder closed flat. No loss on this one.`);
 }
 
-// period: 'daily' | 'weekly' | 'monthly' — picks the matching branded graphic
 async function postStatsRecap(caption, period) {
   const imagePath =
     period === 'weekly' ? WEEKLY_RECAP_IMAGE_PATH :
     period === 'monthly' ? MONTHLY_RECAP_IMAGE_PATH :
     DAILY_RECAP_IMAGE_PATH;
-
   try {
     await sendPhotoFile(imagePath, caption);
     return { ok: true };
@@ -112,9 +103,6 @@ async function postStatsRecap(caption, period) {
   }
 }
 
-// Matches your existing entry-signal template, with real numbers for SL
-// and the four targets, correct pair labelling, and per-pair decimal
-// precision so TP1-4 don't round to the same displayed number.
 async function postEntrySignal({ symbol, direction, entry, interval, sl, pt1, pt2, pt3, pt4 }) {
   const directionLabel = direction === 'buy' ? 'Buy' : 'Sell';
   const intervalLabel = interval === '1' ? '1M' : interval === '60' ? '1H' : interval === '240' ? '4H' : `${interval}m`;
@@ -134,4 +122,4 @@ async function postEntrySignal({ symbol, direction, entry, interval, sl, pt1, pt
   await sendMessage(text);
 }
 
-module.exports = { sendMessage, sendPhotoFile, notifyOwner, postTPHit, postSLHit, postBreakeven, postBreakevenClose, postStatsRecap, postEntrySignal };
+module.exports = { sendMessage, sendPhotoFile, notifyOwner, postTPHit, postSLHit, postBreakevenClose, postBreakeven, postStatsRecap, postEntrySignal };
