@@ -1,36 +1,56 @@
 const { getOpenTrades, updateTrade } = require('./tradeStore');
-const { fetchLatestPrice } = require('./price');
-const { postTPHit, postSLHit, postBreakeven, postBreakevenClose } = require('./telegram');
+const { fetchLatestPrices } = require('./price');
+const { postTPHit, postSLHit, postBreakeven, postBreakevenClose, notifyOwner } = require('./telegram');
 const { recordOutcome } = require('./statsTracker');
 
 const POLL_INTERVAL_MS = 20000;
+const ERROR_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000; // don't spam you — max one alert per 5 min
+let lastErrorNotifyAt = 0;
 
 function crossed(direction, price, level) {
   return direction === 'buy' ? price >= level : price <= level;
 }
 
+async function maybeNotify(text) {
+  const now = Date.now();
+  if (now - lastErrorNotifyAt > ERROR_NOTIFY_COOLDOWN_MS) {
+    lastErrorNotifyAt = now;
+    await notifyOwner(text);
+  }
+}
+
 async function checkTrades() {
   const openTrades = getOpenTrades();
+  if (openTrades.length === 0) return;
+
+  const symbols = openTrades.map(([, trade]) => trade.symbol);
+
+  let prices;
+  try {
+    prices = await fetchLatestPrices(symbols);
+  } catch (err) {
+    console.error('Batch price fetch failed:', err.message);
+    await maybeNotify(`⚠️ Price polling is failing: ${err.message}\nOpen trades aren't being checked right now.`);
+    return;
+  }
 
   for (const [id, trade] of openTrades) {
-    let price;
-    try {
-      price = await fetchLatestPrice(trade.symbol);
-    } catch (err) {
-      console.error(`Price fetch failed for ${trade.symbol}:`, err.message);
-      continue; // skip this trade this cycle, try again next poll
+    const price = prices[trade.symbol];
+    if (price === undefined) {
+      console.error(`No price returned for ${trade.symbol} (trade ${id})`);
+      await maybeNotify(`⚠️ No price data for ${trade.symbol} — that pair isn't being tracked right now.`);
+      continue;
     }
 
     const { direction, sl, entry, pt1, pt2, pt3, pt4, hit, beTriggered } = trade;
     let justClosed = false;
-
     const levels = [['pt1', pt1], ['pt2', pt2], ['pt3', pt3], ['pt4', pt4]];
+
     for (const [key, level] of levels) {
       if (!hit[key] && crossed(direction, price, level)) {
         hit[key] = true;
         await postTPHit(trade.symbol, key.slice(2), level);
         updateTrade(id, { hit });
-
         if (key === 'pt1' && !beTriggered) {
           await postBreakeven(trade.symbol, entry);
           updateTrade(id, { beTriggered: true });
@@ -42,12 +62,8 @@ async function checkTrades() {
         }
       }
     }
+    if (justClosed) continue;
 
-    if (justClosed) continue; // already closed via TP4 this cycle — skip the checks below
-
-    // Once SL has moved to breakeven, a return to entry closes the trade
-    // out as a win (profit already banked up to the last TP hit) rather
-    // than a loss — this must be checked before the original-SL check.
     if (beTriggered) {
       const beHit = direction === 'buy' ? price <= entry : price >= entry;
       if (beHit) {
@@ -60,9 +76,6 @@ async function checkTrades() {
       }
     }
 
-    // Original SL only ever fires before TP1 — after TP1 the effective
-    // stop is breakeven, handled above, so this only ever fires as a
-    // genuine loss on a trade that never reached TP1.
     const stopHit = direction === 'buy' ? price <= sl : price >= sl;
     if (stopHit && !hit.pt1) {
       await postSLHit(trade.symbol, sl);
@@ -77,3 +90,4 @@ function startPolling() {
 }
 
 module.exports = { startPolling, checkTrades };
+
